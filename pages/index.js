@@ -1,9 +1,10 @@
-import { Heading, Page, TextStyle, Layout, EmptyState, ResourceList } from "@shopify/polaris";
+import { Page, Layout, EmptyState, Button, Card, Heading } from "@shopify/polaris";
 import React, { useState } from 'react'
 import { ResourcePicker, TitleBar } from '@shopify/app-bridge-react'
 import ResourceListWithProducts from "./components/ResourceList";
 import store from 'store-js'
-
+import gql from 'graphql-tag';
+import { Mutation } from 'react-apollo';
 
 const Index = () => {
 
@@ -17,7 +18,7 @@ const Index = () => {
     const idsFromResources = resources.selection.map((product) => product.id);
     setOpen(false);
     store.set('ids', idsFromResources)
-    console.log(resources);
+    console.log(resources, idsFromResources);
   }
   const handleCancel = () => {
     setOpen(false)
@@ -26,14 +27,15 @@ const Index = () => {
   // a constant defines your app's empty state
   const emptyState = !store.get('ids')
 
+
   return (
 
     <Page>
 
       <TitleBar
         primaryAction={{
-          content: 'PleasePick!',
-          onAction: () => setOpen(false),
+          content: 'Pick some products!!',
+          onAction: () => setOpen(true),
         }}
       />
 
@@ -59,9 +61,12 @@ const Index = () => {
           </EmptyState>
         </Layout>
       ) : (
+        // <p>can you see me</p>
         // Uses the new resource list that retrieves products by IDs
         <ResourceListWithProducts />
       )}
+
+      <Heading>Work in Progress! 😅</Heading>
     </Page>
   )
 };

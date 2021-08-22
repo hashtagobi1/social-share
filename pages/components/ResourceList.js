@@ -11,104 +11,147 @@ import {
 import store from 'store-js';
 import { Redirect } from '@shopify/app-bridge/actions'
 import { Context } from '@shopify/app-bridge-react'
+import ApplyRandomPrices from './ApplyRandomPrices';
 
 // GraphQL query to retrieve products by IDs.
 // The price field belongs to the variants object because variations of a product can have different prices.
 
 const GET_PRODUCTS_BY_ID = gql`
-query getProducts($ids: [ID!]!){
-    nodes(ids:$ids){
-        ...on Product{
-            title
-            handle
-            descriptionHtml
-            id
-            images(first:1){
-                edges{
-                    nodes{
-                        originalSrc
-                        altText
-                    }
-                }
+  query getProducts($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on Product {
+        title
+        handle
+        descriptionHtml
+        id
+        images(first: 1) {
+          edges {
+            node {
+              originalSrc
+              altText
             }
-            variants(first:1){
-                edges{
-                    node{
-                        price
-                        id
-                    }
-                }
-            }
+          }
         }
+        variants(first: 1) {
+          edges {
+            node {
+              price
+              id
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+class ResourceListWithProducts extends React.Component {
+    static contextType = Context;
+
+    // A constructor that defines selected items and nodes
+    constructor(props) {
+        super(props);
+        this.state = {
+            selectedItems: [],
+            selectedNodes: {},
+        };
+    }
+
+    render() {
+        const app = this.context;
+
+        // Returns products by ID
+        return (
+            <Query query={GET_PRODUCTS_BY_ID} variables={{ ids: store.get('ids') }}>
+                {({ data, loading, error, refetch }) => { // Refetches products by ID
+                    if (loading) return <div>Loading…</div>;
+                    if (error) return <div>{error.message}</div>;
+
+                    const nodesById = {};
+                    data.nodes.forEach(node => nodesById[node.id] = node);
+
+                    return (
+                        <>
+                            <Card>
+                                <ResourceList
+                                    showHeader
+                                    resourceName={{ singular: 'Product', plural: 'Products' }}
+                                    items={data.nodes}
+                                    selectable
+                                    selectedItems={this.state.selectedItems}
+                                    onSelectionChange={selectedItems => {
+                                        const selectedNodes = {};
+                                        selectedItems.forEach(item => selectedNodes[item] = nodesById[item]);
+
+                                        return this.setState({
+                                            selectedItems: selectedItems,
+                                            selectedNodes: selectedNodes,
+                                        });
+                                    }}
+                                    renderItem={item => {
+                                        const media = (
+                                            <Thumbnail
+                                                source={
+                                                    item.images.edges[0]
+                                                        ? item.images.edges[0].node.originalSrc
+                                                        : ''
+                                                }
+                                                alt={
+                                                    item.images.edges[0]
+                                                        ? item.images.edges[0].node.altText
+                                                        : ''
+                                                }
+                                            />
+                                        );
+                                        const price = item.variants.edges[0].node.price;
+                                        return (
+                                            <ResourceList.Item
+                                                id={item.id}
+                                                media={media}
+                                                accessibilityLabel={`View details for ${item.title}`}
+                                                verticalAlignment="center"
+                                                onClick={() => {
+                                                    let index = this.state.selectedItems.indexOf(item.id);
+                                                    const node = nodesById[item.id];
+                                                    if (index === -1) {
+                                                        this.state.selectedItems.push(item.id);
+                                                        this.state.selectedNodes[item.id] = node;
+                                                    } else {
+                                                        this.state.selectedItems.splice(index, 1);
+                                                        delete this.state.selectedNodes[item.id];
+                                                    }
+
+                                                    this.setState({
+                                                        selectedItems: this.state.selectedItems,
+                                                        selectedNodes: this.state.selectedNodes,
+                                                    });
+                                                }}
+                                            >
+                                                <Stack alignment="center">
+                                                    <Stack.Item fill>
+                                                        <h3>
+                                                            <TextStyle variation="strong">
+                                                                {item.title}
+                                                            </TextStyle>
+                                                        </h3>
+                                                    </Stack.Item>
+                                                    <Stack.Item>
+                                                        <p>${price}</p>
+                                                    </Stack.Item>
+                                                </Stack>
+                                            </ResourceList.Item>
+                                        );
+                                    }}
+                                />
+                            </Card>
+
+                            <ApplyRandomPrices selectedItems={this.state.selectedNodes} onUpdate={refetch} />
+                        </>
+                    );
+                }}
+            </Query>
+        );
     }
 }
-`
 
-
-const ResourceListWithProducts = () => {
-
-    const contextType = Context
-
-    const app = Context
-    return (
-        // GraphQL query to retrieve products and their prices
-        <Query query={GET_PRODUCTS_BY_ID} variables={{ ids: store.get('ids') }}>
-            {({ data, loading, error }) => {
-                if (loading) return <div>Loading…</div>;
-                if (error) return <div>{error.message}</div>;
-
-                return (
-                    <Card>
-                        <ResourceList // Defines your resource list component
-                            showHeader
-                            resourceName={{ singular: 'Product', plural: 'Products' }}
-                            items={data.nodes}
-                            renderItem={item => {
-                                const media = (
-                                    <Thumbnail
-                                        source={
-                                            item.images.edges[0]
-                                                ? item.images.edges[0].node.originalSrc
-                                                : ''
-                                        }
-                                        alt={
-                                            item.images.edges[0]
-                                                ? item.images.edges[0].node.altText
-                                                : ''
-                                        }
-                                    />
-                                );
-                                const price = item.variants.edges[0].node.price;
-                                return (
-                                    <ResourceList.Item
-                                        id={item.id}
-                                        media={media}
-                                        accessibilityLabel={`View details for ${item.title}`}
-                                        onClick={() => {
-                                            store.set('item', item);
-                                        }}
-                                    >
-                                        <Stack>
-                                            <Stack.Item fill>
-                                                <h3>
-                                                    <TextStyle variation="strong">
-                                                        {item.title}
-                                                    </TextStyle>
-                                                </h3>
-                                            </Stack.Item>
-                                            <Stack.Item>
-                                                <p>${price}</p>
-                                            </Stack.Item>
-                                        </Stack>
-                                    </ResourceList.Item>
-                                );
-                            }}
-                        />
-                    </Card>
-                );
-            }}
-        </Query>
-    );
-}
-
-export default ResourceListWithProducts
+export default ResourceListWithProducts;
